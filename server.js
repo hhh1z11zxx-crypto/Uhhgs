@@ -1,10 +1,14 @@
-Const Fastify = require("fastify");
+// CÁC ĐIỀU CHỈNH CHÍNH:
+// 1. Sửa lỗi cú pháp: 'Const' -> 'const'
+// 2. Sửa lỗi triển khai: Sử dụng process.env.PORT
+// 3. Xóa logic dự đoán khỏi hàm fastify.get("/api/taixiu/sunwin")
+
+const Fastify = require("fastify"); 
 const cors = require("@fastify/cors");
 const WebSocket = require("ws");
 const fs = require("fs");
 const path = require("path");
 
-// Cập nhật: Lấy PORT từ biến môi trường (ví dụ: Render), hoặc mặc định là 8000
 const PORT = process.env.PORT || 8000; 
 
 const TOKEN = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJnZW5kZXIiOjAsImNhblZpZXdTdGF0IjpmYWxzZSwiZGlzcGxheU5hbWUiOiJoZWxsb2tpZXRkZXB6YWkiLCJib3QiOjAsImlzTWVyY2hhbnQiOmZhbHNlLCJ2ZXJpZmllZEJhbmtBY2NvdW50Ijp0cnVlLCJwbGF5RXZlbnRMb2JieSI6ZmFsc2UsImN1c3RvbWVySWQiOjI2MzE1MDI1MiwiYWZmSWQiOiIwYjA4ZDA0YjI1YmNkMGFkNDQ4NGMwZjlkYmQ1NmM0ZSIsImJhbm5lZCI6ZmFsc2UsImJyYW5kIjoic3VuLndpbiIsInRpbWVzdGFtcCI6MTc1Nzc2NzEwNjI0NCwibG9ja0dhbWVzIjpbXSwiYW1vdW50IjowLCJsb2NrQ2hhdCI6ZmFsc2UsInBob25lVmVyaWZpZWQiOnRydWUsImlwQWRkcmVzcyI6IjI0MDI6ODAwOjYyY2Q6YjRkMTo4YzY0OmEzYzk6MTJiZjpjMTlhIiwibXV0ZSI6ZmFsc2UsImF2YXRhciI6Imh0dHBzOi8vaW1hZ2VzLnN3aW5zaG9wLm5ldC9pbWFnZXMvYXZhdGFyL2F2YXRhcl8wOS5wbmciLCJwbGF0Zm9ybUlkIjoxLCJ1c2VySWQiOiJjZGJhZjU5OC1lNGVmLTQ3ZjgtYjRhNi1hNDg4MTA5OGRiODYiLCJyZWdUaW1lIjoxNzQ5MTk0MTM2MTY1LCJwaG9uZSI6Ijg0MzY5ODIzODAwIiwiZGVwb3NpdCI6dHJ1ZSwidXNlcm5hbWUiOiJTQ19oZWxsb2tpZXRuZTIxMiJ9.ObqvJUUyS_yUN6VtK8-6NS5iV2cK5cGEMmrAFnzUO0I";
@@ -17,6 +21,9 @@ let rikResults = [];
 let rikCurrentSession = null;
 let rikWS = null;
 let rikIntervalCmd = null;
+
+// LƯU Ý: Các hàm dự đoán và lớp SEIUManager vẫn được giữ lại 
+// để tiếp tục thu thập dữ liệu và cập nhật lịch sử, nhưng không được gọi trong API.
 
 function parseLines(lines) {
   const arr = lines.map(l => (typeof l === 'string' ? JSON.parse(l) : l));
@@ -43,7 +50,6 @@ function majority(obj) {
   for (const k in obj)
     if (obj[k] > maxV) {
       maxV = obj[k];
-      maxK = k;
     }
   return {
     key: maxK,
@@ -519,7 +525,7 @@ function loadHistory() {
     if (fs.existsSync(HISTORY_FILE)) {
       rikResults = JSON.parse(fs.readFileSync(HISTORY_FILE, 'utf8'));
       seiuManager.loadInitial(rikResults);
-      console.log(`📚 Đã tải ${rikResults.length} bản ghi lịch sử vào hệ thống dự đoán.`);
+      console.log(`📚 Đã tải ${rikResults.length} bản ghi lịch sử vào hệ thống.`);
     }
   } catch (err) {
     console.error('❌ Lỗi khi tải lịch sử:', err);
@@ -593,7 +599,8 @@ function connectRikWebSocket() {
           total: json.total,
           result: json.result
         };
-        seiuManager.pushRecord(record);
+        // Dữ liệu vẫn được đẩy vào Manager để duy trì lịch sử chính xác
+        seiuManager.pushRecord(record); 
         if (!rikCurrentSession || record.session > rikCurrentSession) {
           rikCurrentSession = record.session;
           rikResults.unshift(record);
@@ -647,8 +654,7 @@ fastify.get("/api/taixiu/sunwin", async () => {
     result
   } = current;
 
-  const prediction = seiuManager.getPrediction();
-
+  // PHẦN DỰ ĐOÁN ĐÃ BỊ LOẠI BỎ Ở ĐÂY
   return {
     id: "@hellokietne21",
     phien: session,
@@ -657,9 +663,6 @@ fastify.get("/api/taixiu/sunwin", async () => {
     xuc_xac_3: dice[2],
     tong: total,
     ket_qua: result,
-    du_doan: prediction.prediction,
-    ty_le_thanh_cong: `${(prediction.confidence * 100).toFixed(0)}%`,
-    giai_thich: "Dự đoán bởi thuật toán kết hợp đa mô hình (SEIU-MAX)",
   };
 });
 
@@ -679,8 +682,7 @@ fastify.get("/api/taixiu/history", async () => {
 const start = async () => {
   try {
     const address = await fastify.listen({
-      // SỬ DỤNG PORT ĐÃ CẬP NHẬT
-      port: PORT, 
+      port: PORT,
       host: "0.0.0.0"
     });
     console.log(`🚀 API chạy tại ${address}`);
@@ -691,3 +693,4 @@ const start = async () => {
 };
 
 start();
+        
